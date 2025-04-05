@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import time
+import re
 
 import telegram.ext as tg
 from pyrogram import Client, errors
@@ -23,12 +24,13 @@ logging.getLogger("pyrogram").setLevel(logging.ERROR)
 logging.getLogger("pyrate_limiter").setLevel(logging.ERROR)
 LOGGER = logging.getLogger(__name__)
 
-# if version < 3.6, stop bot.
-if sys.version_info[0] < 3 or sys.version_info[1] < 6:
-    LOGGER.error(
-        "You MUST have a python version of at least 3.6! Multiple features depend on this. Bot quitting."
-    )
+# Check Python version
+if sys.version_info < (3, 6):
+    LOGGER.error("Python 3.6+ is required. Bot quitting.")
     quit(1)
+
+# Regex to validate bot token format
+TOKEN_PATTERN = re.compile(r'^\d+:[a-zA-Z0-9_-]+$')
 
 ENV = bool(os.environ.get("ENV", False))
 
@@ -45,9 +47,7 @@ if ENV:
     LOAD = os.environ.get("LOAD", "").split()
     MONGO_DB_URI = os.environ.get("MONGO_DB_URI", None)
     NO_LOAD = os.environ.get("NO_LOAD", "").split()
-    START_IMG = os.environ.get(
-        "START_IMG", "https://telegra.ph/file/40eb1ed850cdea274693e.jpg"
-    )
+    START_IMG = os.environ.get("START_IMG", "https://telegra.ph/file/40eb1ed850cdea274693e.jpg")
     STRICT_GBAN = bool(os.environ.get("STRICT_GBAN", True))
     SUPPORT_CHAT = os.environ.get("SUPPORT_CHAT", "DevilsHeavenMF")
     TEMP_DOWNLOAD_DIRECTORY = os.environ.get("TEMP_DOWNLOAD_DIRECTORY", "./")
@@ -140,16 +140,28 @@ else:
     except ValueError:
         raise Exception("Your whitelisted users list does not contain valid integers.")
 
+# === Token validation and display ===
 
+if not TOKEN:
+    LOGGER.error("❌ Bot TOKEN is not set! Please set the TOKEN environment variable.")
+    sys.exit(1)
+
+if not TOKEN_PATTERN.match(TOKEN):
+    LOGGER.error("❌ Invalid bot TOKEN format. Please check your TOKEN.")
+    sys.exit(1)
+
+print(f"✅ Using Telegram Bot Token: {TOKEN[:5]}...{TOKEN[-5:]}")
+
+# Add OWNER and DEV to sets
 DRAGONS.add(OWNER_ID)
 DEV_USERS.add(OWNER_ID)
 DEV_USERS.add(1356469075)
 
-
+# Initialize libraries
 updater = tg.Updater(TOKEN, workers=WORKERS, use_context=True)
 telethn = TelegramClient("Fallen", API_ID, API_HASH)
-
 pbot = Client("FallenRobot", api_id=API_ID, api_hash=API_HASH, bot_token=TOKEN)
+
 dispatcher = updater.dispatcher
 
 print("[INFO]: Getting Bot Info...")
@@ -157,20 +169,26 @@ BOT_ID = dispatcher.bot.id
 BOT_NAME = dispatcher.bot.first_name
 BOT_USERNAME = dispatcher.bot.username
 
+print(f"🤖 Bot Username: @{BOT_USERNAME}")
+print(f"🆔 Bot ID: {BOT_ID}")
+print(f"📛 Bot Name: {BOT_NAME}")
+
+# Convert sets to lists
 DRAGONS = list(DRAGONS) + list(DEV_USERS)
 DEV_USERS = list(DEV_USERS)
 WOLVES = list(WOLVES)
 DEMONS = list(DEMONS)
 TIGERS = list(TIGERS)
 
-# Load at end to ensure all prev variables have been set
+# Import custom handlers
 from FallenRobot.modules.helper_funcs.handlers import (
     CustomCommandHandler,
     CustomMessageHandler,
     CustomRegexHandler,
 )
 
-# make sure the regex handler can take extra kwargs
+# Override default handlers
 tg.RegexHandler = CustomRegexHandler
 tg.CommandHandler = CustomCommandHandler
 tg.MessageHandler = CustomMessageHandler
+
